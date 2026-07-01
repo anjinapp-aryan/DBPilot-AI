@@ -1,0 +1,58 @@
+name: Deploy Validation
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  validate-frontend-build:
+    name: Validate Frontend Production Build
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: frontend/package-lock.json
+      - run: npm ci
+      - run: npm run build
+        env:
+          NEXT_PUBLIC_API_BASE_URL: https://placeholder.invalid
+
+  validate-backend-image:
+    name: Validate Backend Docker Image
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build production image
+        run: docker build -t dbpilot-ai-backend:deploy-check .
+      - name: Smoke test container health check
+        run: |
+          docker run -d --name dbpilot-backend-smoke -p 8000:8000 \
+            -e DATABASE_URL=postgresql://user:pass@localhost:5432/db \
+            -e SECRET_KEY=ci-smoke-test \
+            dbpilot-ai-backend:deploy-check
+          for i in $(seq 1 10); do
+            if curl -fs http://localhost:8000/health; then exit 0; fi
+            sleep 2
+          done
+          echo "Health check failed" && docker logs dbpilot-backend-smoke && exit 1
+
+  # Actual deployment is handled by Vercel's GitHub integration (frontend)
+  # and Railway/Render's GitHub integration (backend) — both auto-deploy on
+  # push to main once connected. This workflow only validates that main is
+  # in a deployable state.
+  notify:
+    name: Deployment Readiness
+    needs: [validate-frontend-build, validate-backend-image]
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "main is deployable — Vercel/Railway/Render integrations will pick up this push."

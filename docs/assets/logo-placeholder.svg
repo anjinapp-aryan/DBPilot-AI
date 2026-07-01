@@ -1,0 +1,8 @@
+<svg width="120" height="120" viewBox="0 0 120 120" xmlns="http://www.w3.org/2000/svg">
+  <rect width="120" height="120" rx="24" fill="#0F172A"/>
+  <ellipse cx="60" cy="38" rx="34" ry="14" fill="none" stroke="#38BDF8" stroke-width="4"/>
+  <path d="M26 38 V82 C26 89.7 41.7 96 60 96 C78.3 96 94 89.7 94 82 V38" fill="none" stroke="#38BDF8" stroke-width="4"/>
+  <path d="M26 60 C26 67.7 41.7 74 60 74 C78.3 74 94 67.7 94 60" fill="none" stroke="#38BDF8" stroke-width="4"/>
+  <circle cx="60" cy="38" r="6" fill="#38BDF8"/>
+  <text x="60" y="112" font-family="Arial, sans-serif" font-size="10" fill="#94A3B8" text-anchor="middle">DBPilot AI</text>
+</svg>

@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: dbpilot-ai-backend
+    runtime: docker
+    dockerfilePath: ./backend/Dockerfile
+    dockerContext: ./backend
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        sync: false
+      - key: DEEPSEEK_API_KEY
+        sync: false
+      - key: ALLOWED_ORIGINS
+        value: https://dbpilot-ai.vercel.app
+      - key: SECRET_KEY
+        generateValue: true
