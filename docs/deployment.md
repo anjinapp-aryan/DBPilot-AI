@@ -21,8 +21,9 @@ and small-scale production use.
 
 1. Create a new Railway project from the GitHub repo, root directory `backend/`.
 2. Railway builds using the provided [backend/Dockerfile](../backend/Dockerfile).
-3. Set environment variables from `.env.example` (`DATABASE_URL`,
-   `DEEPSEEK_API_KEY`, `ALLOWED_ORIGINS`, `SECRET_KEY`).
+3. Set environment variables from `.env.example` (`DATABASE_URL`, at least
+   one AI provider key — e.g. `DEEP_SHEEK_NVIDIA_API_KEY` or `GEMINI_API_KEY`
+   — `ALLOWED_ORIGINS`, `SECRET_KEY`).
 4. Expose port `8000`; Railway provides the public URL.
 
 ## Backend — Render (alternative)
