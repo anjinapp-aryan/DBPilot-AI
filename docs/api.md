@@ -40,6 +40,39 @@ smoke tests.
 }
 ```
 
+## Endpoints — AI Gateway
+
+Backed by `AIGatewayService` (see [docs/agents.md](agents.md#ai-gateway-llm-connectivity-layer)).
+
+### `GET /api/v1/ai/health`
+
+Per-provider status (`UP` | `DOWN` | `NOT_CONFIGURED`) plus `primary`.
+
+```json
+{ "deepseek": "UP", "gemini": "NOT_CONFIGURED", "groq": "UP", "qwen": "NOT_CONFIGURED", "openrouter": "NOT_CONFIGURED", "primary": "deepseek" }
+```
+
+### `GET /api/v1/ai/providers`
+
+Per-provider status in failover order: `name`, `displayName`, `configured`, `status`, `circuitState`, `health`.
+
+### `GET /api/v1/ai/stats`
+
+In-memory call metrics per provider (calls/successes/failures/rate limits/timeouts/circuit opens/avg latency) plus a global fallback counter.
+
+### `POST /api/v1/ai/chat`
+
+Manual verification endpoint — sends a single message through the gateway's
+failover chain. Returns `503` with `{"detail": {"error": ..., "providerAttempts": [...]}}`
+if every configured provider fails or none are configured.
+
+```json
+// Request
+{ "message": "hello", "system": null }
+// Response
+{ "response": "...", "provider": "deepseek" }
+```
+
 ## Planned Endpoints
 
 | Phase | Endpoint | Purpose |

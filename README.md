@@ -77,7 +77,7 @@ flowchart LR
 | Frontend | Next.js (App Router), TypeScript, React |
 | Backend | Python, FastAPI |
 | Database | PostgreSQL (Neon), SQLAlchemy |
-| LLM Provider | DeepSeek |
+| LLM Provider | DeepSeek (primary), with automatic failover to Gemini, Groq, Qwen, OpenRouter |
 | Frontend Hosting | Vercel |
 | Backend Hosting | Railway / Render |
 | CI/CD | GitHub Actions |
@@ -126,7 +126,7 @@ python -m venv .venv
 . .venv/Scripts/activate        # Windows (PowerShell: .venv\Scripts\Activate.ps1)
 # source .venv/bin/activate      # macOS/Linux
 pip install -r requirements.txt
-cp ../.env.example .env         # then fill in DATABASE_URL / DEEPSEEK_API_KEY
+cp ../.env.example .env         # then fill in DATABASE_URL + at least one AI provider key
 uvicorn app.main:app --reload --port 8000
 ```
 
@@ -168,7 +168,8 @@ See [.env.example](.env.example) for the complete list. Key variables:
 | Variable | Description |
 |---|---|
 | `DATABASE_URL` | Connection string for the target/app PostgreSQL database |
-| `DEEPSEEK_API_KEY` | API key for the DeepSeek LLM provider |
+| `PRIMARY_PROVIDER` / `AI_PROVIDER_ORDER` | Preferred LLM provider and failover chain (DeepSeek → Gemini → Groq → Qwen → OpenRouter) |
+| `DEEP_SHEEK_NVIDIA_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `QWEN3_NVIDIA_API_KEY`, `OPENROUTER_API_KEY` | Per-provider API keys — the gateway skips any provider whose key/model isn't set |
 | `NEXT_PUBLIC_API_BASE_URL` | URL the frontend uses to reach the backend API |
 | `ALLOWED_ORIGINS` | CORS allow-list for the backend |
 | `SECRET_KEY` | Backend secret for signing/session use |

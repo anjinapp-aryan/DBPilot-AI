@@ -1,0 +1,23 @@
+title = "DBPilot AI gitleaks config"
+
+# Extend the default gitleaks rule set rather than replacing it.
+[extend]
+useDefault = true
+
+[allowlist]
+description = """
+Placeholder API-key values used in backend/tests/ai/ unit test fixtures.
+These match provider key-prefix patterns (NVIDIA/Groq/OpenAI) by design —
+the tests exist to verify config parsing, not to hold real credentials.
+Real secrets live only in a gitignored, never-committed .env file.
+"""
+regexes = [
+  '''test-nvidia-key''',
+  '''test-nvidia-alias-key''',
+  '''test-groq-key''',
+  '''test-deepseek-key''',
+  '''nvapi-test''',
+  '''nvapi-alias-test''',
+  '''gsk-test''',
+  '''sk-test''',
+]

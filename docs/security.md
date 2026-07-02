@@ -17,6 +17,18 @@ planned per phase.
 | Cross-origin abuse of the API | `ALLOWED_ORIGINS` CORS allow-list, auth-required endpoints | 1+ |
 | Dependency vulnerabilities | Automated security scanning in CI (`lint.yml` / Dependabot) | 1 |
 
+## Secret Scanning
+
+CI runs [Gitleaks](https://github.com/gitleaks/gitleaks) against full git
+history on every push/PR (`lint.yml` → `security-scan`). `.gitleaks.toml` at
+the repo root extends the default rule set with a narrow allowlist for
+placeholder credential-shaped values used in `backend/tests/ai/` fixtures
+(e.g. `test-nvidia-key`) — these intentionally resemble real provider key
+prefixes to exercise config-parsing logic, but hold no real secret. Real
+credentials only ever live in a gitignored `.env`, never committed. Any new
+allowlist entry must be scoped to a specific known-safe literal, never a
+broad pattern, to avoid masking a genuine future leak.
+
 ## SQL Execution Safety Rules (Validator Agent)
 
 Applied deterministically, not left to the LLM:

@@ -32,9 +32,35 @@ and top-level [agents/](../agents/) specs.
 4. **Stateless agents, stateful orchestrator.** Agents receive everything
    they need as input; conversation state lives in the orchestrator/app DB.
 
-## Text-to-SQL Agent (DeepSeek)
+## AI Gateway (LLM Connectivity Layer)
 
-- Model: configurable via `DEEPSEEK_MODEL` (default `deepseek-chat`).
+Implemented in `backend/app/ai/` — the single entry point every LLM-calling
+agent (Text-to-SQL, SQL Explainer, ...) goes through. Never call a provider
+SDK/API directly from agent code; go through `AIGatewayService`.
+
+- **Automatic failover.** Providers are tried in `AI_PROVIDER_ORDER` order
+  (default `deepseek,gemini,groq,qwen,openrouter`); if DeepSeek hits a rate
+  or token limit, the gateway transparently retries the next configured
+  provider instead of failing the request. A provider missing its API
+  key/model is skipped automatically.
+- **Per-provider resilience.** Each provider gets its own retry (transient
+  network/timeout errors only — quota errors fail over immediately with no
+  wasted retry budget) and circuit breaker (opens after repeated failures,
+  half-opens after a cooldown).
+- **Health tracking + metrics.** `ProviderHealthTracker` caches per-provider
+  health for 5 minutes; `AIMetrics` tracks calls/successes/failures/latency
+  per provider. Exposed via `GET /api/v1/ai/health`, `/providers`, `/stats`.
+- **Providers today:** DeepSeek and Qwen (NVIDIA-hosted, OpenAI-compatible),
+  Groq (OpenAI-compatible), Gemini (native REST), OpenRouter (OpenAI-compatible,
+  final fallback). Adding another provider is one new class under
+  `backend/app/ai/providers/` plus its env vars — no gateway changes.
+
+## Text-to-SQL Agent (DeepSeek, via the AI Gateway)
+
+- Model: configurable via `NVIDIA_DEEPSEEK_MODEL` (default
+  `deepseek-ai/deepseek-v4-flash`). Falls over to Gemini/Groq/Qwen/OpenRouter
+  automatically if DeepSeek is rate-limited or unavailable — see AI Gateway
+  above.
 - Context: relevant schema subset (not the entire database — see
   [docs/database.md](database.md)) + last N conversation turns.
 - Prompt templates: [prompts/](../prompts/).
