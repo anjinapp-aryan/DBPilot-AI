@@ -20,8 +20,11 @@ planned per phase.
 ## Secret Scanning
 
 CI runs [Gitleaks](https://github.com/gitleaks/gitleaks) against full git
-history on every push/PR (`lint.yml` → `security-scan`). `.gitleaks.toml` at
-the repo root extends the default rule set with a narrow allowlist for
+history on every push/PR (`lint.yml` → `security-scan`). `gitleaks.toml` at
+the repo root (referenced explicitly via `GITLEAKS_CONFIG` in `lint.yml` —
+gitleaks-action's auto-discovery also picks up this exact filename, but the
+env var makes it explicit rather than implicit) extends the default rule set
+with a narrow allowlist for
 placeholder credential-shaped values used in `backend/tests/ai/` fixtures
 (e.g. `test-nvidia-key`) — these intentionally resemble real provider key
 prefixes to exercise config-parsing logic, but hold no real secret. Real
