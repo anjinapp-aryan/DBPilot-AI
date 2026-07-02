@@ -7,7 +7,7 @@ def _cfg(**overrides: object) -> ProviderConfig:
     defaults = {
         "key": "deepseek",
         "display_name": "DeepSeek",
-        "api_key": "sk-test",
+        "api_key": "test-deepseek-key",
         "model": "deepseek-chat",
         "base_url": "https://api.deepseek.com",
     }
