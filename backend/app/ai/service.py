@@ -1,4 +1,3 @@
-import logging
 import time
 from collections.abc import AsyncIterator, Awaitable, Callable
 
@@ -12,8 +11,9 @@ from app.ai.health import ProviderHealthTracker
 from app.ai.metrics import AIMetrics
 from app.ai.providers.base import LlmProvider
 from app.core.config import Settings
+from app.core.logging import get_logger
 
-log = logging.getLogger(__name__)
+log = get_logger(__name__)
 
 _RETRYABLE_EXCEPTIONS = (httpx.TransportError, httpx.TimeoutException)
 
@@ -50,10 +50,10 @@ class AIGatewayService:
         self._breakers: dict[str, CircuitBreaker] = {key: CircuitBreaker() for key in providers}
         self._last_used_provider: str | None = None
         log.info(
-            "AI Gateway initialized order=%s configured=%s primary=%s",
-            settings.ai_provider_order_list,
-            self._configured_keys(),
-            settings.primary_provider,
+            "ai_gateway_initialized",
+            order=settings.ai_provider_order_list,
+            configured=self._configured_keys(),
+            primary=settings.primary_provider,
         )
 
     # ------------------------------------------------------------------
@@ -112,9 +112,10 @@ class AIGatewayService:
             if not breaker.allow_request():
                 self._metrics.record_circuit_open(provider.name)
                 log.warning(
-                    "AI_GATEWAY provider=%s result=SKIPPED reason=CIRCUIT_OPEN fallbackDepth=%d",
-                    provider.display_name,
-                    i,
+                    "ai_gateway_provider_skipped",
+                    provider=provider.display_name,
+                    reason="CIRCUIT_OPEN",
+                    depth=i,
                 )
                 if has_next:
                     self._metrics.record_fallback()
@@ -122,10 +123,7 @@ class AIGatewayService:
 
             try:
                 log.info(
-                    "AI_GATEWAY op=%s provider=%s attempt fallbackDepth=%d",
-                    op,
-                    provider.display_name,
-                    i,
+                    "ai_gateway_provider_attempt", op=op, provider=provider.display_name, depth=i
                 )
                 self._metrics.record_call(provider.name)
                 start = time.monotonic()
@@ -140,9 +138,10 @@ class AIGatewayService:
                     self._health.record_failure(provider.name, "empty response")
                     breaker.record_failure()
                     log.warning(
-                        "AI_GATEWAY provider=%s result=FAILED reason=EMPTY_RESPONSE depth=%d",
-                        provider.display_name,
-                        i,
+                        "ai_gateway_provider_failed",
+                        provider=provider.display_name,
+                        reason="EMPTY_RESPONSE",
+                        depth=i,
                     )
                     if has_next:
                         self._metrics.record_fallback()
@@ -154,10 +153,10 @@ class AIGatewayService:
                 self._health.record_success(provider.name)
                 breaker.record_success()
                 log.info(
-                    "AI_GATEWAY provider=%s result=SUCCESS latencyMs=%d fallbackDepth=%d",
-                    provider.display_name,
-                    elapsed_ms,
-                    i,
+                    "ai_gateway_provider_success",
+                    provider=provider.display_name,
+                    latency_ms=elapsed_ms,
+                    depth=i,
                 )
                 return result
             except Exception as e:  # noqa: BLE001 - any provider failure triggers failover
@@ -167,21 +166,21 @@ class AIGatewayService:
                 if has_next:
                     self._metrics.record_fallback()
                     log.warning(
-                        "AI_GATEWAY provider=%s result=FAILED reason=%s fallback=%s depth=%d",
-                        provider.display_name,
-                        reason,
-                        chain[i + 1].display_name,
-                        i,
+                        "ai_gateway_provider_failed",
+                        provider=provider.display_name,
+                        reason=reason,
+                        fallback=chain[i + 1].display_name,
+                        depth=i,
                     )
                 else:
                     log.error(
-                        "AI_GATEWAY provider=%s result=FAILED reason=%s fallback=NONE depth=%d "
-                        "— all %d providers exhausted for op=%s",
-                        provider.display_name,
-                        reason,
-                        i,
-                        len(chain),
-                        op,
+                        "ai_gateway_provider_failed",
+                        provider=provider.display_name,
+                        reason=reason,
+                        fallback=None,
+                        depth=i,
+                        chain_length=len(chain),
+                        op=op,
                     )
 
         raise AIGatewayError(
@@ -242,9 +241,11 @@ class AIGatewayService:
         if not breaker.allow_request():
             self._metrics.record_circuit_open(provider.name)
             log.warning(
-                "AI_GATEWAY provider=%s result=SKIPPED reason=CIRCUIT_OPEN depth=%d (stream)",
-                provider.display_name,
-                idx,
+                "ai_gateway_provider_skipped",
+                provider=provider.display_name,
+                reason="CIRCUIT_OPEN",
+                depth=idx,
+                stream=True,
             )
             if has_next:
                 self._metrics.record_fallback()
@@ -265,30 +266,33 @@ class AIGatewayService:
             if emitted:
                 # Tokens already streamed to the client — cannot transparently fail over.
                 log.error(
-                    "AI_GATEWAY provider=%s result=FAILED reason=%s fallback=NONE_MID_STREAM "
-                    "fallbackDepth=%d (stream)",
-                    provider.display_name,
-                    reason,
-                    idx,
+                    "ai_gateway_provider_failed",
+                    provider=provider.display_name,
+                    reason=reason,
+                    fallback="NONE_MID_STREAM",
+                    depth=idx,
+                    stream=True,
                 )
                 raise
             if has_next:
                 self._metrics.record_fallback()
                 log.warning(
-                    "AI_GATEWAY provider=%s result=FAILED reason=%s fallback=%s depth=%d (stream)",
-                    provider.display_name,
-                    reason,
-                    chain[idx + 1].display_name,
-                    idx,
+                    "ai_gateway_provider_failed",
+                    provider=provider.display_name,
+                    reason=reason,
+                    fallback=chain[idx + 1].display_name,
+                    depth=idx,
+                    stream=True,
                 )
             else:
                 log.error(
-                    "AI_GATEWAY provider=%s result=FAILED reason=%s fallback=NONE fallbackDepth=%d "
-                    "— all %d providers exhausted (stream)",
-                    provider.display_name,
-                    reason,
-                    idx,
-                    len(chain),
+                    "ai_gateway_provider_failed",
+                    provider=provider.display_name,
+                    reason=reason,
+                    fallback=None,
+                    depth=idx,
+                    chain_length=len(chain),
+                    stream=True,
                 )
             async for token in self._stream_from(chain, idx + 1, messages, system, temperature):
                 yield token
@@ -301,10 +305,11 @@ class AIGatewayService:
         self._health.record_success(provider.name)
         breaker.record_success()
         log.info(
-            "AI_GATEWAY provider=%s result=SUCCESS latencyMs=%d fallbackDepth=%d (stream)",
-            provider.display_name,
-            elapsed_ms,
-            idx,
+            "ai_gateway_provider_success",
+            provider=provider.display_name,
+            latency_ms=elapsed_ms,
+            depth=idx,
+            stream=True,
         )
 
     # ------------------------------------------------------------------
