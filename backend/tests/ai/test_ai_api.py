@@ -20,16 +20,20 @@ def test_ai_health_reports_not_configured_without_api_keys() -> None:
 
     assert response.status_code == 200
     body = response.json()
+    assert body["success"] is True
+    data = body["data"]
     for key in ("deepseek", "gemini", "groq", "qwen", "openrouter"):
-        assert body[key] == "NOT_CONFIGURED"
-    assert body["primary"] == "deepseek"
+        assert data[key] == "NOT_CONFIGURED"
+    assert data["primary"] == "deepseek"
 
 
 def test_ai_providers_lists_full_failover_chain() -> None:
     response = client.get("/api/v1/ai/providers")
 
     assert response.status_code == 200
-    names = [p["name"] for p in response.json()]
+    body = response.json()
+    assert body["success"] is True
+    names = [p["name"] for p in body["data"]]
     assert names == ["deepseek", "gemini", "groq", "qwen", "openrouter"]
 
 
@@ -37,7 +41,9 @@ def test_ai_stats_returns_snapshot() -> None:
     response = client.get("/api/v1/ai/stats")
 
     assert response.status_code == 200
-    assert "providers" in response.json()
+    body = response.json()
+    assert body["success"] is True
+    assert "providers" in body["data"]
 
 
 def test_ai_chat_returns_503_when_no_provider_configured() -> None:
@@ -67,5 +73,6 @@ def test_dependency_override_swaps_the_gateway_used_by_routes() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["response"] == "overridden response"
-    assert body["provider"] == "fake"
+    assert body["success"] is True
+    assert body["data"]["response"] == "overridden response"
+    assert body["data"]["provider"] == "fake"

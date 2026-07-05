@@ -17,7 +17,7 @@ from app.ai.factory import get_ai_gateway
 from app.ai.service import AIGatewayService
 from app.core.cache import CacheProvider, InMemoryCache
 from app.core.config import Settings, get_settings
-from app.core.db import get_db_session
+from app.core.db import check_db_connectivity, get_db_session
 from app.services.schema_service import SchemaService
 
 
@@ -55,3 +55,10 @@ async def get_db() -> AsyncIterator[AsyncSession]:
     has one consistent import surface: app.core.dependencies."""
     async for session in get_db_session():
         yield session
+
+
+async def check_db_ready() -> bool:
+    """Injectable wrapper around check_db_connectivity() so GET
+    /health/ready's "database up" branch can be tested via
+    app.dependency_overrides without needing a real reachable database."""
+    return await check_db_connectivity()

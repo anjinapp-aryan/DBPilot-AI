@@ -44,6 +44,15 @@ For local development, run both the app DB and a sample target DB via
 [deployment/docker-compose.yml](../deployment/docker-compose.yml), or point
 `DATABASE_URL` at a free [Neon](https://neon.tech) branch.
 
+**Windows gotcha:** `psycopg`'s async mode raises `InterfaceError` under
+the default Windows `ProactorEventLoop` (uvicorn's default on Windows) —
+`app/core/db.py::check_db_connectivity()` catches this and logs a
+warning rather than crashing, but a real connection attempt will hit the
+same error. Fix by setting
+`asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())`
+before the app starts (e.g. at the top of `app/main.py`) if developing
+against a real Postgres instance on Windows.
+
 ## Related Documents
 
 - [docs/architecture.md](architecture.md)

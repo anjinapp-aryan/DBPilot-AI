@@ -15,6 +15,9 @@ planned per phase.
 | Credential leakage | Target DB credentials encrypted at rest in the app database; never logged; never sent to the LLM | 2 |
 | Unauthorized access to a connection/schema | Per-user authorization checks on every connection and query | 2+ |
 | Cross-origin abuse of the API | `ALLOWED_ORIGINS` CORS allow-list, auth-required endpoints | 1+ |
+| Host-header attacks | `TrustedHostMiddleware`, `ALLOWED_HOSTS` (defaults permissive for dev — set explicit hostnames in production) | 1 |
+| Request flooding / brute force | Rate limiting (`slowapi`, default `60/minute` per IP, `RATE_LIMIT_DEFAULT`) — health-check routes are exempt so orchestrator probes aren't throttled | 1 |
+| Clickjacking, MIME-sniffing, referrer leakage | `SecurityHeadersMiddleware` sets `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy`, `Permissions-Policy`, and `Strict-Transport-Security` (only over HTTPS) on every response | 1 |
 | Dependency vulnerabilities | Automated security scanning in CI (`lint.yml` / Dependabot) | 1 |
 
 ## Secret Scanning

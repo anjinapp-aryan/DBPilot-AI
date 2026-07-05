@@ -6,6 +6,7 @@ from pydantic import BaseModel
 from app.ai.chat_message import ChatMessage
 from app.ai.service import AIGatewayService
 from app.core.dependencies import get_llm_gateway
+from app.models.api_response import ApiResponse
 
 router = APIRouter(prefix="/api/v1/ai", tags=["ai"])
 
@@ -17,28 +18,28 @@ class ChatRequest(BaseModel):
     system: str | None = None
 
 
-class ChatResponse(BaseModel):
+class ChatData(BaseModel):
     response: str
     provider: str | None
 
 
-@router.get("/health")
-def ai_health(gateway: Gateway) -> dict[str, str]:
-    return gateway.health()
+@router.get("/health", response_model=ApiResponse[dict[str, str]])
+def ai_health(gateway: Gateway) -> ApiResponse[dict[str, str]]:
+    return ApiResponse(data=gateway.health())
 
 
-@router.get("/providers")
-def ai_providers(gateway: Gateway) -> list[dict[str, Any]]:
-    return gateway.provider_statuses()
+@router.get("/providers", response_model=ApiResponse[list[dict[str, Any]]])
+def ai_providers(gateway: Gateway) -> ApiResponse[list[dict[str, Any]]]:
+    return ApiResponse(data=gateway.provider_statuses())
 
 
-@router.get("/stats")
-def ai_stats(gateway: Gateway) -> dict[str, Any]:
-    return gateway.stats()
+@router.get("/stats", response_model=ApiResponse[dict[str, Any]])
+def ai_stats(gateway: Gateway) -> ApiResponse[dict[str, Any]]:
+    return ApiResponse(data=gateway.stats())
 
 
-@router.post("/chat", response_model=ChatResponse)
-async def ai_chat(payload: ChatRequest, gateway: Gateway) -> ChatResponse:
+@router.post("/chat", response_model=ApiResponse[ChatData])
+async def ai_chat(payload: ChatRequest, gateway: Gateway) -> ApiResponse[ChatData]:
     """Manual verification endpoint for the AI gateway.
 
     Lets you confirm at least one AI_PROVIDER_ORDER provider is wired up
@@ -52,4 +53,4 @@ async def ai_chat(payload: ChatRequest, gateway: Gateway) -> ChatResponse:
     free instead of repeating this try/except per endpoint.
     """
     response = await gateway.chat([ChatMessage.user(payload.message)], system=payload.system)
-    return ChatResponse(response=response, provider=gateway.last_used_provider)
+    return ApiResponse(data=ChatData(response=response, provider=gateway.last_used_provider))
