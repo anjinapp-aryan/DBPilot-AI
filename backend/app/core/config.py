@@ -1,20 +1,30 @@
+import warnings
 from functools import lru_cache
+from typing import Literal
 
-from pydantic import Field
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+Environment = Literal["development", "staging", "production"]
+
+_PLACEHOLDER_SECRET_KEY = "change-me-in-production"
+_MIN_PRODUCTION_SECRET_KEY_LENGTH = 16
+_SUSPICIOUS_PRODUCTION_ORIGINS = {"*", "http://localhost:3000"}
 
 
 class Settings(BaseSettings):
     """Application configuration, populated from environment variables.
 
     See ../../.env.example at the repo root for the full variable list.
+    Production safety checks (below) run once, at construction time —
+    the app refuses to boot rather than run insecurely configured.
     """
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", populate_by_name=True)
 
     app_name: str = "DBPilot AI"
     app_version: str = "0.1.0"
-    backend_env: str = "development"
+    backend_env: Environment = "development"
 
     database_url: str = "postgresql+psycopg://user:password@localhost:5432/dbpilot"
 
@@ -69,6 +79,34 @@ class Settings(BaseSettings):
     @property
     def ai_provider_order_list(self) -> list[str]:
         return [key.strip() for key in self.ai_provider_order.split(",") if key.strip()]
+
+    @model_validator(mode="after")
+    def _validate_production_safety(self) -> "Settings":
+        if self.backend_env != "production":
+            return self
+
+        if self.secret_key == _PLACEHOLDER_SECRET_KEY:
+            raise ValueError(
+                "SECRET_KEY is still the placeholder default — set a real secret "
+                "before running with BACKEND_ENV=production."
+            )
+        if len(self.secret_key) < _MIN_PRODUCTION_SECRET_KEY_LENGTH:
+            raise ValueError(
+                f"SECRET_KEY must be at least {_MIN_PRODUCTION_SECRET_KEY_LENGTH} "
+                "characters when BACKEND_ENV=production."
+            )
+        if not self.allowed_origins_list:
+            raise ValueError(
+                "ALLOWED_ORIGINS must be set when BACKEND_ENV=production "
+                "(refusing to boot with no configured CORS origins)."
+            )
+        if _SUSPICIOUS_PRODUCTION_ORIGINS & set(self.allowed_origins_list):
+            warnings.warn(
+                "ALLOWED_ORIGINS includes a wildcard or localhost origin while "
+                "BACKEND_ENV=production — verify this is intentional.",
+                stacklevel=2,
+            )
+        return self
 
 
 @lru_cache

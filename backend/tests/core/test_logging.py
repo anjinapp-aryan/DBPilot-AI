@@ -7,7 +7,7 @@ from app.core.logging import configure_logging, get_logger
 
 
 def test_configure_logging_sets_a_single_stdout_handler() -> None:
-    configure_logging(Settings(backend_env="production"))
+    configure_logging(Settings(backend_env="staging"))
     root = logging.getLogger()
     assert len(root.handlers) == 1
 
@@ -18,12 +18,12 @@ def test_configure_logging_development_uses_debug_level() -> None:
 
 
 def test_configure_logging_non_development_uses_info_level() -> None:
-    configure_logging(Settings(backend_env="production"))
+    configure_logging(Settings(backend_env="staging"))
     assert logging.getLogger().level == logging.INFO
 
 
 def test_get_logger_returns_bound_logger_and_captures_event_and_kwargs() -> None:
-    configure_logging(Settings(backend_env="production"))
+    configure_logging(Settings(backend_env="staging"))
 
     with structlog.testing.capture_logs() as captured:
         log = get_logger("test.logger")
@@ -36,7 +36,7 @@ def test_get_logger_returns_bound_logger_and_captures_event_and_kwargs() -> None
 
 
 def test_request_id_bound_via_contextvars_appears_in_log_output() -> None:
-    configure_logging(Settings(backend_env="production"))
+    configure_logging(Settings(backend_env="staging"))
 
     # capture_logs() replaces the configured processor chain entirely, so
     # merge_contextvars (normally supplied by configure_logging) must be
