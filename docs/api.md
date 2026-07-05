@@ -39,8 +39,9 @@ OpenAPI docs at `/docs` (Swagger UI) and `/redoc` when running locally.
 
 ### `GET /health`
 
-Liveness/readiness check used by CI, Railway/Render health checks, and local
-smoke tests.
+Fast, dependency-free check — what CI, Railway/Render, and the Dockerfile's
+own `HEALTHCHECK` point at (unchanged shape so existing infra config doesn't
+need updating).
 
 **Response `200 OK`**
 
@@ -50,6 +51,34 @@ smoke tests.
   "data": { "status": "ok", "service": "dbpilot-ai-backend", "version": "0.1.0" },
   "metadata": {},
   "timestamp": "2026-01-01T00:00:00+00:00"
+}
+```
+
+### `GET /health/live`
+
+Liveness only — no dependency checks. Always `200` if the process can
+respond at all; use this for a liveness probe that should only restart a
+genuinely hung process.
+
+```json
+{ "status": "alive" }
+```
+
+### `GET /health/ready`
+
+Readiness — checks database connectivity and cache functionality, and
+reports current AI provider status. Returns `503` (standard error envelope,
+`error.code: "database_error"`) if the database is unreachable. AI provider
+outages do **not** fail readiness — the app can still serve non-AI requests;
+provider status is reported for monitoring, not used to gate the HTTP status.
+
+```json
+// 200 response data
+{
+  "status": "ready",
+  "database": "up",
+  "cache": "up",
+  "ai_providers": { "deepseek": "UP", "gemini": "NOT_CONFIGURED", "...": "...", "primary": "deepseek" }
 }
 ```
 
