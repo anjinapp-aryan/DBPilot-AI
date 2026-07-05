@@ -13,8 +13,8 @@ jobs:
       run:
         working-directory: frontend
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v6
         with:
           node-version: "20"
           cache: "npm"
@@ -31,7 +31,7 @@ jobs:
       run:
         working-directory: backend
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build production image
         run: docker build -t dbpilot-ai-backend:deploy-check .
       - name: Smoke test container health check
