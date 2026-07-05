@@ -5,6 +5,7 @@ from app.api.ai import router as ai_router
 from app.api.health import router as health_router
 from app.core.config import get_settings
 from app.core.logging import configure_logging, get_logger
+from app.middleware.exceptions import register_exception_handlers
 from app.middleware.request_id import RequestIDMiddleware
 
 settings = get_settings()
@@ -27,6 +28,8 @@ app.add_middleware(
 # Added last so it's outermost: request_id/trace_id are bound before any
 # other middleware or route code runs, and stay bound through the response.
 app.add_middleware(RequestIDMiddleware)
+
+register_exception_handlers(app)
 
 app.include_router(health_router)
 app.include_router(ai_router)

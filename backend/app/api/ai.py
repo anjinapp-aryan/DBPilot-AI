@@ -1,10 +1,9 @@
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 
 from app.ai.chat_message import ChatMessage
-from app.ai.exceptions import AIGatewayError
 from app.ai.service import AIGatewayService
 from app.core.dependencies import get_llm_gateway
 
@@ -46,12 +45,11 @@ async def ai_chat(payload: ChatRequest, gateway: Gateway) -> ChatResponse:
     correctly end-to-end.
     Phase 3 (text-to-sql) introduces the real /query endpoint on top of the
     same AIGatewayService — this route stays as a general-purpose smoke test.
+
+    AIGatewayError is intentionally not caught here — the global handler
+    registered in app/middleware/exceptions.py renders it as a standard
+    503 error envelope, so every route gets consistent error handling for
+    free instead of repeating this try/except per endpoint.
     """
-    try:
-        response = await gateway.chat([ChatMessage.user(payload.message)], system=payload.system)
-    except AIGatewayError as e:
-        raise HTTPException(
-            status_code=503,
-            detail={"error": str(e), "providerAttempts": e.provider_attempts},
-        ) from e
+    response = await gateway.chat([ChatMessage.user(payload.message)], system=payload.system)
     return ChatResponse(response=response, provider=gateway.last_used_provider)

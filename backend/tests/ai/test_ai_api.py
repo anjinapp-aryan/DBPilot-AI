@@ -44,7 +44,11 @@ def test_ai_chat_returns_503_when_no_provider_configured() -> None:
     response = client.post("/api/v1/ai/chat", json={"message": "hello"})
 
     assert response.status_code == 503
-    assert "providerAttempts" in response.json()["detail"]
+    body = response.json()
+    assert body["success"] is False
+    assert body["error"]["code"] == "ai_provider_error"
+    assert body["error"]["details"][0]["providerAttempts"] == []
+    assert "timestamp" in body
 
 
 def test_dependency_override_swaps_the_gateway_used_by_routes() -> None:
