@@ -4,18 +4,19 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.ai import router as ai_router
 from app.api.health import router as health_router
 from app.core.config import get_settings
-from app.core.logging import configure_logging, get_logger
+from app.core.lifespan import lifespan
+from app.core.logging import configure_logging
 from app.middleware.exceptions import register_exception_handlers
 from app.middleware.request_id import RequestIDMiddleware
 
 settings = get_settings()
 configure_logging(settings)
-log = get_logger(__name__)
 
 app = FastAPI(
     title=settings.app_name,
     version=settings.app_version,
     description="Your AI Copilot for Databases",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -33,5 +34,3 @@ register_exception_handlers(app)
 
 app.include_router(health_router)
 app.include_router(ai_router)
-
-log.info("app_configured", env=settings.backend_env)
