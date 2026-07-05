@@ -17,8 +17,20 @@ OpenAPI docs at `/docs` (Swagger UI) and `/redoc` when running locally.
 ## Conventions
 
 - All request/response bodies are JSON.
-- Errors follow `{"detail": "human readable message"}` (FastAPI default),
-  with a stable `error_code` field added as the API matures.
+- **Every successful response uses a standard envelope**
+  (`backend/app/models/api_response.py`):
+  ```json
+  { "success": true, "data": { "...": "..." }, "metadata": {}, "timestamp": "2026-01-01T00:00:00+00:00" }
+  ```
+- **Every error response** (raised via `app/core/exceptions.py`'s domain
+  exceptions, or an unhandled error) uses a matching but distinct envelope,
+  rendered by the global handlers in `app/middleware/exceptions.py`:
+  ```json
+  { "success": false, "error": { "code": "...", "message": "...", "details": [] }, "timestamp": "..." }
+  ```
+  `error.code` is a stable machine-readable string (e.g. `validation_error`,
+  `ai_provider_error`, `internal_error`) — see `app/core/exceptions.py` for
+  the full set.
 - Endpoints that stream agent progress (schema discovery, text-to-SQL) will
   use WebSocket or Server-Sent Events — documented per-endpoint once
   implemented.
@@ -34,15 +46,16 @@ smoke tests.
 
 ```json
 {
-  "status": "ok",
-  "service": "dbpilot-ai-backend",
-  "version": "0.1.0"
+  "success": true,
+  "data": { "status": "ok", "service": "dbpilot-ai-backend", "version": "0.1.0" },
+  "metadata": {},
+  "timestamp": "2026-01-01T00:00:00+00:00"
 }
 ```
 
 ## Endpoints — AI Gateway
 
-Backed by `AIGatewayService` (see [docs/agents.md](agents.md#ai-gateway-llm-connectivity-layer)).
+Backed by `AIGatewayService` (see [docs/agents.md](agents.md#ai-gateway-llm-connectivity-layer)). All wrapped in the standard envelope above — examples below show only the `data` field's shape.
 
 ### `GET /api/v1/ai/health`
 
@@ -63,13 +76,14 @@ In-memory call metrics per provider (calls/successes/failures/rate limits/timeou
 ### `POST /api/v1/ai/chat`
 
 Manual verification endpoint — sends a single message through the gateway's
-failover chain. Returns `503` with `{"detail": {"error": ..., "providerAttempts": [...]}}`
+failover chain. Returns `503` with the standard error envelope
+(`error.code: "ai_provider_error"`, `error.details: [{"providerAttempts": [...]}]`)
 if every configured provider fails or none are configured.
 
 ```json
 // Request
 { "message": "hello", "system": null }
-// Response
+// Response data
 { "response": "...", "provider": "deepseek" }
 ```
 

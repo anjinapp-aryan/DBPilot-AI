@@ -10,6 +10,9 @@ def test_health_check_returns_ok() -> None:
 
     assert response.status_code == 200
     body = response.json()
-    assert body["status"] == "ok"
-    assert body["service"] == "dbpilot-ai-backend"
-    assert "version" in body
+    assert body["success"] is True
+    assert body["data"]["status"] == "ok"
+    assert body["data"]["service"] == "dbpilot-ai-backend"
+    assert "version" in body["data"]
+    assert "timestamp" in body
+    assert body["metadata"] == {}
