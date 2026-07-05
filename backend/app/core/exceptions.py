@@ -61,3 +61,8 @@ class GenericException(AppException):
 
     code = "internal_error"
     status_code = 500
+
+
+class RateLimitException(AppException):
+    code = "rate_limit_exceeded"
+    status_code = 429

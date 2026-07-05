@@ -7,6 +7,7 @@ from app.core.cache import CacheProvider
 from app.core.config import get_settings
 from app.core.dependencies import check_db_ready, get_cache, get_llm_gateway
 from app.core.exceptions import DatabaseException
+from app.middleware.rate_limit import limiter
 from app.models.api_response import ApiResponse
 
 router = APIRouter(tags=["health"])
@@ -19,6 +20,7 @@ _CACHE_PROBE_KEY = "__readiness_probe__"
 
 
 @router.get("/health", response_model=ApiResponse[dict[str, str]])
+@limiter.exempt
 def health_check() -> ApiResponse[dict[str, str]]:
     """Fast, dependency-free check — what Railway/Render/Docker's own
     HEALTHCHECK point at (see deployment/railway.json, render.yaml,
@@ -35,6 +37,7 @@ def health_check() -> ApiResponse[dict[str, str]]:
 
 
 @router.get("/health/live", response_model=ApiResponse[dict[str, str]])
+@limiter.exempt
 def liveness() -> ApiResponse[dict[str, str]]:
     """Liveness: is the process itself responsive — no dependency checks.
     If this can't respond, the process is hung/deadlocked and should be
@@ -44,6 +47,7 @@ def liveness() -> ApiResponse[dict[str, str]]:
 
 
 @router.get("/health/ready", response_model=ApiResponse[dict[str, Any]])
+@limiter.exempt
 async def readiness(
     gateway: Gateway, cache: Cache, db_ready: DbReady
 ) -> ApiResponse[dict[str, Any]]:

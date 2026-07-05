@@ -18,6 +18,7 @@ from typing import Any
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
+from slowapi.errors import RateLimitExceeded
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.ai.exceptions import AIGatewayError
@@ -25,6 +26,7 @@ from app.core.exceptions import (
     AIProviderException,
     AppException,
     GenericException,
+    RateLimitException,
     ValidationException,
 )
 from app.core.logging import get_logger
@@ -64,6 +66,23 @@ def register_exception_handlers(app: FastAPI) -> None:
             AIProviderException.code,
             str(exc),
             details=[{"providerAttempts": exc.provider_attempts}],
+        )
+
+    @app.exception_handler(RateLimitExceeded)
+    def handle_rate_limit_exceeded(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+        # Deliberately a plain `def`, not `async def`: slowapi's
+        # BaseHTTPMiddleware-based SlowAPIMiddleware only supports
+        # synchronous exception handlers (verified against the installed
+        # package — its sync_check_limits() explicitly falls back to
+        # slowapi's own default response if the registered handler is a
+        # coroutine function). An async handler here would be silently
+        # ignored in favor of slowapi's own response shape.
+        log.warning("rate_limit_exceeded", path=request.url.path, limit=str(exc.detail))
+        return _error_response(
+            RateLimitException.status_code,
+            RateLimitException.code,
+            "Rate limit exceeded — please slow down.",
+            details=[{"limit": str(exc.detail)}],
         )
 
     @app.exception_handler(RequestValidationError)

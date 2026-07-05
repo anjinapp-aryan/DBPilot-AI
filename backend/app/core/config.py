@@ -29,7 +29,9 @@ class Settings(BaseSettings):
     database_url: str = "postgresql+psycopg://user:password@localhost:5432/dbpilot"
 
     allowed_origins: str = "http://localhost:3000"
+    allowed_hosts: str = "*"
     secret_key: str = "change-me-in-production"
+    rate_limit_default: str = "60/minute"
 
     # --- AI Gateway: routing ---
     primary_provider: str = "deepseek"
@@ -75,6 +77,10 @@ class Settings(BaseSettings):
     @property
     def allowed_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.allowed_origins.split(",") if origin.strip()]
+
+    @property
+    def allowed_hosts_list(self) -> list[str]:
+        return [host.strip() for host in self.allowed_hosts.split(",") if host.strip()]
 
     @property
     def ai_provider_order_list(self) -> list[str]:

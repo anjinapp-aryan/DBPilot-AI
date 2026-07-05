@@ -3,6 +3,7 @@ from fastapi.testclient import TestClient
 from app.ai.factory import get_ai_gateway
 from app.core.dependencies import check_db_ready, get_cache
 from app.main import app
+from app.middleware.rate_limit import limiter
 
 client = TestClient(app)
 
@@ -86,3 +87,12 @@ def test_readiness_reports_cache_down_without_failing_the_request() -> None:
     body = response.json()
     assert body["data"]["status"] == "ready"
     assert body["data"]["cache"] == "down"
+
+
+def test_health_endpoints_are_exempt_from_the_real_apps_rate_limiter() -> None:
+    limiter.reset()
+    # The app's real default is 60/minute — well more than enough calls to
+    # prove these three routes never trip it, unlike a normal route would.
+    for _ in range(65):
+        assert client.get("/health").status_code == 200
+        assert client.get("/health/live").status_code == 200
