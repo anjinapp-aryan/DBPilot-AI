@@ -1,9 +1,11 @@
 # Security Policy
 
 DBPilot AI executes AI-generated SQL against user-connected databases, so
-security is a first-class concern. See [docs/security.md](docs/security.md)
-for the full threat model (prompt injection, SQL injection, destructive query
-prevention, credential handling).
+security is a first-class concern. See [SECURITY_ARCHITECTURE.md](SECURITY_ARCHITECTURE.md)
+for the full enterprise security architecture (authN/Z, encryption, secrets,
+audit, compliance, zero trust) and [docs/security.md](docs/security.md) for
+the current Phase-1-scoped threat model (prompt injection, SQL injection,
+destructive query prevention, credential handling).
 
 ## Reporting a Vulnerability
 

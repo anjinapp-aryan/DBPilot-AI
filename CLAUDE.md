@@ -4,7 +4,9 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-DBPilot AI — an open-source AI copilot for databases (Next.js frontend + FastAPI backend). Currently in early development: Phase 1 (project bootstrap) is on `main`; a substantial AI Gateway subsystem and backend hardening pass are on `feature/ai-gateway` (PR open, not yet merged). See [docs/roadmap.md](docs/roadmap.md) for the full 10-phase plan and [docs/architecture.md](docs/architecture.md) / [docs/agents.md](docs/agents.md) for design rationale.
+DBPilotAI is an enterprise-grade AI agentic database platform: natural language and autonomous agents over customer databases (schema discovery, NL-to-SQL, query optimization, observability, root-cause analysis, data quality, documentation, migration assistance). Stack is **Python (FastAPI backend) + React/TypeScript (Next.js frontend)** — no Java/Spring anywhere in this repo.
+
+**Current implementation status vs. long-term vision:** what's actually built today is Phase 1 (project bootstrap, on `main`) plus one production-grade subsystem, the AI Gateway (`backend/app/ai/`, on `feature/ai-gateway`, PR open). Everything else described in [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md), [AI_ARCHITECTURE.md](AI_ARCHITECTURE.md), [DOMAIN.md](DOMAIN.md), [RAG_ARCHITECTURE.md](RAG_ARCHITECTURE.md), [MEMORY.md](MEMORY.md), [EVENTS.md](EVENTS.md), [MULTITENANCY.md](MULTITENANCY.md), and root [SECURITY.md](SECURITY.md)/[OBSERVABILITY.md](OBSERVABILITY.md) is the **target architecture**, not yet implemented — treat those files as the north star this codebase is growing toward, and [ROADMAP.md](ROADMAP.md) for the sequencing. [DECISIONS.md](DECISIONS.md) records why each major call was made; consult it before re-litigating a settled decision. The narrower `docs/` folder (`docs/architecture.md`, `docs/agents.md`, etc.) describes only the original 10-phase bootstrap plan and is being superseded by the root-level docs as each phase catches up to the vision — don't treat the two sets as contradictory, treat `docs/` as the historical near-term slice.
 
 ## Commands
 
@@ -52,7 +54,7 @@ docker compose -f deployment/docker-compose.yml up --build
 
 ## Architecture
 
-### AI Gateway (`backend/app/ai/`) — the core non-obvious subsystem
+### AI Gateway (`backend/app/ai/`) — the core non-obvious subsystem, and the template for everything else
 
 Every LLM call in the app goes through `AIGatewayService` (`app/ai/service.py`) — never call a provider directly. It implements automatic failover across a configurable provider chain:
 
@@ -75,6 +77,8 @@ Adding a new provider: implement one class in `app/ai/providers/`, add its env v
 
 **Env var naming quirk:** `DEEP_SHEEK_NVIDIA_API_KEY` (note the spelling) intentionally matches an upstream sibling project's naming so a `.env` from that project can be reused unmodified. It's aliased in `Settings` via `Field(validation_alias="DEEP_SHEEK_NVIDIA_API_KEY")` — `populate_by_name=True` is required in `model_config` for the plain field name to also work.
 
+**Why this file matters beyond the gateway itself:** the planned `AgentOrchestrator` ([AI_ARCHITECTURE.md](AI_ARCHITECTURE.md)) is designed to reuse this exact shape (provider/tool abstraction + circuit breaker + retry + typed failures + full observability) rather than introduce a second resilience paradigm. When implementing agent orchestration, extend this pattern; don't reinvent it.
+
 ### Backend cross-cutting layers (`backend/app/core/`, `backend/app/middleware/`)
 
 - **Structured logging** (`app/core/logging.py`): `configure_logging(settings)` runs once at import time in `main.py`, before the `FastAPI()` app is constructed. Get a logger via `get_logger(__name__)` and log with **short event names + kwargs**, never %-style messages — e.g. `log.info("ai_gateway_provider_success", provider=..., depth=...)` — so fields stay queryable in the JSON output structlog produces outside `development` env. Console-rendered (readable) output only in `development`.
@@ -96,6 +100,64 @@ backend/app/
 ```
 
 Top-level `agents/` and `prompts/` (repo root, distinct from `backend/app/agents/`) hold agent *specs* and LLM *prompt templates* respectively — human-reviewable design docs, separate from the Python implementation.
+
+## Engineering Principles
+
+1. **Hexagonal/Clean Architecture, applied gradually.** `domain/` (pure Python, framework-free) → `application/` (use cases) → `adapters/` (FastAPI routes, SQLAlchemy repos, Kafka producers, LLM clients). Don't retrofit the whole backend in one PR — new domains (Connection, Metadata, Execution — see [DOMAIN.md](DOMAIN.md)) should be built this way from the start; `app/ai/` already follows the spirit of it (provider abstraction = ports/adapters).
+2. **Every SQL-execution-adjacent path has a non-LLM-trusting validation gate.** The model's own claim that a query is safe is never sufficient — see [SECURITY.md](SECURITY.md) and [AGENTS.md](AGENTS.md)'s SQL Generation Agent spec.
+3. **Tenant ID is a first-class parameter everywhere, starting now** — even before multi-tenancy billing/quotas exist ([MULTITENANCY.md](MULTITENANCY.md)). Retrofitting tenant isolation after data models exist without it is far more expensive than including it from the first migration.
+4. **Agent workflows have hard budgets** (max depth, max cost, max wall-clock time), enforced by the orchestrator, not left to prompt instructions.
+5. **Cache aggressively around anything schema-derived** — schema/metadata changes rarely; don't recompute embeddings or re-run discovery per query.
+
+## Coding Standards
+
+- Python: type hints on all public functions, `ruff`/`black`/`mypy` clean (see Commands above). Structured logging (event name + kwargs), never %-style or bare `print`.
+- TypeScript: strict mode (already enabled in `frontend/tsconfig.json`), ESLint flat config clean.
+- New domain code goes through the DI container (`app/core/dependencies.py`) — no route should import and call a singleton factory directly (see the `Depends(get_llm_gateway)` pattern).
+- Tests accompany every new module in the same PR, not after.
+
+## AI Generation Rules (for Claude/Cursor/Copilot working in this repo)
+
+- Don't invent Java/Spring code, YAML configs, or Maven/Gradle files — this is a Python/FastAPI + React/TypeScript repo, full stop.
+- Don't call an LLM provider directly from new code — go through `AIGatewayService` (or its future `AgentOrchestrator` extension).
+- Don't design a new agent without first checking [AGENTS.md](AGENTS.md) for whether it already has a spec (responsibilities/inputs/outputs/tools/memory/failure-handling) — implement to the spec, propose a spec change via [DECISIONS.md](DECISIONS.md) if the spec is wrong, don't silently diverge.
+- Don't add a new async messaging path (Kafka topic) for something that's a simple synchronous request/response — see [EVENTS.md](EVENTS.md) for what actually justifies an event.
+- When implementing anything DB-connection- or credential-adjacent, read [SECURITY.md](SECURITY.md) first — this is the platform's highest-liability surface.
+
+## Architecture Rules
+
+- New bounded contexts follow [DOMAIN.md](DOMAIN.md)'s aggregate boundaries — don't let the Metadata domain and Execution domain share a table/model just for convenience.
+- Read-only/advisory agents and write-adjacent/action agents are architecturally different tiers ([AI_ARCHITECTURE.md](AI_ARCHITECTURE.md)) — don't give an advisory agent execution capability "just in case."
+- Control-plane (many tenants, small metadata each) and data-plane (occasional large schema-discovery/indexing jobs) scale on different axes — don't size one service for both.
+
+## Security Rules
+
+- No credential (customer DB password, API key) ever appears in a log line, trace span, or LLM prompt/context — see [SECURITY.md](SECURITY.md).
+- Envelope-encrypt stored credentials per tenant; a single platform-wide encryption key is a forbidden pattern (below).
+- RBAC/authorization checks happen at the service layer, not just at the route — a route missing a decorator should never be the only thing standing between a request and unauthorized data.
+
+## Performance Rules
+
+- Don't re-run schema discovery or re-embed unchanged metadata — check the cache ([MEMORY.md](MEMORY.md)/[RAG_ARCHITECTURE.md](RAG_ARCHITECTURE.md)) first.
+- Streaming responses (chat, agent progress) use SSE/WebSocket, not polling.
+
+## Review Rules
+
+- A PR introducing a new agent must include: the agent's spec entry in [AGENTS.md](AGENTS.md), its prompt template under `prompts/`, and failure-mode tests (what happens when its tool call errors, when the LLM returns garbage).
+- A PR touching SQL execution must include a test proving the validator rejects at least one destructive statement shape.
+
+## Forbidden Patterns
+
+- Calling an LLM provider SDK directly from a route or agent instead of through the gateway/orchestrator.
+- A single shared encryption key for all tenants' stored credentials.
+- Trusting an LLM's self-reported "this is safe" as the sole gate before SQL execution.
+- Retrofitting tenant_id onto a table after the fact instead of including it from the first migration.
+- Unbounded agent-to-agent call chains with no depth/cost/time ceiling.
+
+## Best Practices
+
+- Extend existing patterns (AI Gateway's failover/circuit-breaker/DI/logging shape) rather than introducing a second way to do the same thing.
+- Keep `docs/` (near-term, Phase-1-scoped detail) and the root-level docs (long-term target architecture) both accurate — update the one that actually matches what you just built, and note in the PR if it changes the other's assumptions.
 
 ## Conventions
 
