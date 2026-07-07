@@ -13,19 +13,11 @@
 [![Lint](https://github.com/anjinapp-aryan/DBPilot-AI/actions/workflows/lint.yml/badge.svg)](https://github.com/anjinapp-aryan/DBPilot-AI/actions/workflows/lint.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-[Live Demo](#) · [Documentation](docs/) · [Report a Bug](https://github.com/anjinapp-aryan/DBPilot-AI/issues) · [Request a Feature](https://github.com/anjinapp-aryan/DBPilot-AI/issues)
+[Documentation](docs/) · [Report a Bug](https://github.com/anjinapp-aryan/DBPilot-AI/issues) · [Request a Feature](https://github.com/anjinapp-aryan/DBPilot-AI/issues)
 
 </div>
 
 ---
-
-## Screenshots
-
-> Screenshots will be added as the UI is built out (see [roadmap](docs/roadmap.md)).
-
-| Chat-to-SQL | Schema Explorer | Auto Chart |
-|---|---|---|
-| _coming soon_ | _coming soon_ | _coming soon_ |
 
 ## What is DBPilot AI?
 
@@ -33,40 +25,75 @@ DBPilot AI is an open-source AI copilot that sits on top of your database and
 lets you **talk to your data**. Connect a database, ask a question in plain
 English, and DBPilot AI discovers the schema, generates safe SQL, validates
 and explains it before running it, executes it, and turns the result into a
-chart or a conversational answer — with voice input and a full audit trail.
+chart or a conversational answer — with a full audit trail.
 
 It is built as a transparent, inspectable multi-agent system rather than a
 single opaque prompt, so every step (schema discovery → SQL generation →
 validation → execution → explanation) is a distinct, testable component.
 
-## Features
+> **Project status:** early-stage and under active development. The
+> foundation (FastAPI backend, Next.js frontend, CI) and the **AI Gateway**
+> — a production-grade multi-provider LLM layer with automatic failover —
+> are built. Database-facing features (schema discovery, text-to-SQL,
+> query execution) are the next phases. See [Roadmap](#roadmap) for exactly
+> what works today.
 
-- **Schema Discovery** — automatically introspects PostgreSQL databases (tables, columns, foreign keys, indexes) to ground the AI in your real schema.
-- **Text-to-SQL** — natural language to SQL via DeepSeek, with conversational memory across turns.
-- **SQL Safety Validation** — a dedicated validator agent blocks destructive/unsafe statements before anything touches your database.
-- **SQL Execution** — sandboxed, read-oriented execution with row limits and timeouts.
-- **SQL Explanation / Tutor Mode** — plain-English explanations of generated SQL to help you learn, not just consume output.
-- **Voice Input** — ask questions with your voice using the browser's speech recognition APIs.
-- **Automatic Visualization** — results are automatically charted when appropriate.
-- **Multi-Agent Orchestration** — discovery, generation, validation, execution, and explanation are coordinated as separate agents with clear responsibilities.
+## What's built today
 
-See the full breakdown in [docs/agents.md](docs/agents.md).
+### ✅ AI Gateway (`backend/app/ai/`)
+
+Every LLM call in the platform goes through a single resilient gateway —
+no agent or route ever talks to a provider SDK directly:
+
+- **Multi-provider failover chain:** DeepSeek (NVIDIA-hosted) → Gemini →
+  Groq → Qwen (NVIDIA-hosted) → OpenRouter, configurable via
+  `AI_PROVIDER_ORDER`. Providers without an API key + model configured are
+  skipped automatically.
+- **Per-provider circuit breakers** that open after repeated failures and
+  half-open after a cooldown.
+- **Smart retries** — transient network errors are retried; quota/429
+  errors fail over to the next provider immediately.
+- **Health tracking & metrics** exposed at
+  `GET /api/v1/ai/health`, `/api/v1/ai/providers`, `/api/v1/ai/stats`.
+- **Chat endpoint:** `POST /api/v1/ai/chat`.
+
+### ✅ Platform foundation
+
+- Structured JSON logging (structlog) with request/trace-ID correlation
+  middleware.
+- Centralized exception handling with a single JSON error envelope.
+- Dependency-injection container (`app/core/dependencies.py`) — everything
+  is swappable in tests.
+- Health-check subsystem, security middleware, Docker Compose stack,
+  GitHub Actions CI (tests, lint, type-check, gitleaks secret scanning).
+
+### 🚧 Planned (target architecture)
+
+Schema discovery, text-to-SQL, SQL safety validation, sandboxed execution,
+explanation/tutor mode, automatic visualization, voice input, and
+multi-agent orchestration are specified in the root-level architecture docs
+([ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md),
+[AI_ARCHITECTURE.md](AI_ARCHITECTURE.md), [DOMAIN.md](DOMAIN.md),
+[SECURITY.md](SECURITY.md)) and land phase by phase — see
+[ROADMAP.md](ROADMAP.md).
 
 ## Architecture
 
-High-level system architecture — see [architecture/system-architecture.md](architecture/system-architecture.md) and [docs/architecture.md](docs/architecture.md) for details.
+High-level target architecture — see [ARCHITECTURE.md](ARCHITECTURE.md) and
+[docs/architecture.md](docs/architecture.md) for details.
 
 ```mermaid
 flowchart LR
-    U[User] --> FE[Frontend<br/>Next.js on Vercel]
-    FE <--> BE[Backend API<br/>FastAPI on Railway/Render]
-    BE --> ORCH[Multi-Agent Orchestrator]
-    ORCH --> SD[Schema Discovery Agent]
-    ORCH --> T2S[Text-to-SQL Agent<br/>DeepSeek]
-    ORCH --> VAL[SQL Validator Agent]
-    ORCH --> EXEC[SQL Executor Agent]
-    ORCH --> EXP[SQL Explainer Agent]
-    SD --> DB[(Target Database<br/>Neon PostgreSQL)]
+    U[User] --> FE[Frontend<br/>Next.js]
+    FE <--> BE[Backend API<br/>FastAPI]
+    BE --> GW[AI Gateway ✅<br/>failover · circuit breakers · metrics]
+    GW --> LLM[DeepSeek → Gemini → Groq<br/>→ Qwen → OpenRouter]
+    BE --> ORCH[Multi-Agent Orchestrator 🚧]
+    ORCH --> SD[Schema Discovery 🚧]
+    ORCH --> T2S[Text-to-SQL 🚧]
+    ORCH --> VAL[SQL Validator 🚧]
+    ORCH --> EXEC[SQL Executor 🚧]
+    SD --> DB[(Target Database<br/>PostgreSQL)]
     EXEC --> DB
 ```
 
@@ -75,9 +102,9 @@ flowchart LR
 | Layer | Technology |
 |---|---|
 | Frontend | Next.js (App Router), TypeScript, React |
-| Backend | Python, FastAPI |
-| Database | PostgreSQL (Neon), SQLAlchemy |
-| LLM Provider | DeepSeek (primary), with automatic failover to Gemini, Groq, Qwen, OpenRouter |
+| Backend | Python 3.11+, FastAPI |
+| Database | PostgreSQL, SQLAlchemy (async) |
+| LLM Providers | DeepSeek (primary) with automatic failover to Gemini, Groq, Qwen, OpenRouter |
 | Frontend Hosting | Vercel |
 | Backend Hosting | Railway / Render |
 | CI/CD | GitHub Actions |
@@ -87,27 +114,35 @@ flowchart LR
 ```text
 DBPilot-AI/
 ├── .github/         # CI workflows, issue/PR templates
-├── docs/            # architecture, api, database, agents, deployment, security, roadmap docs
-├── architecture/    # architecture diagrams
-├── frontend/        # Next.js application
 ├── backend/         # FastAPI application
-├── database/        # schema/migration references
+│   └── app/
+│       ├── ai/      # ✅ AI Gateway: providers, failover, circuit breaker, health, metrics
+│       ├── api/     # HTTP routes (ai, health)
+│       ├── core/    # config, logging, exceptions, DI, db, cache
+│       ├── middleware/  # request-ID correlation, exception handlers
+│       ├── agents/  # reserved for Phase 2+ agent implementations
+│       └── services/    # business-logic services
+├── frontend/        # Next.js application
+├── docs/            # phase-scoped docs (architecture, api, agents, deployment, …)
+├── *.md (root)      # target-architecture docs (ARCHITECTURE, AGENTS, DOMAIN, SECURITY, …)
+├── architecture/    # architecture diagrams
 ├── prompts/         # LLM prompt templates
-├── agents/          # agent specs / orchestration configuration
+├── agents/          # agent specs (design docs, not code)
+├── database/        # schema/migration references
+├── deployment/      # docker-compose / hosting configs
 ├── scripts/         # dev & setup scripts
 ├── tests/           # cross-cutting / e2e tests
-├── deployment/       # Vercel / Railway / Render / docker-compose configs
 └── examples/        # example queries and walkthroughs
 ```
 
-## Installation
+## Getting Started
 
 ### Prerequisites
 
 - Node.js 20+
 - Python 3.11+
-- A PostgreSQL database (e.g. a free [Neon](https://neon.tech) project)
-- A [DeepSeek](https://platform.deepseek.com) API key
+- At least one LLM provider API key (DeepSeek, Gemini, Groq, Qwen, or OpenRouter)
+- A PostgreSQL database (e.g. a free [Neon](https://neon.tech) project) — optional until the database features land
 
 ### Clone
 
@@ -116,21 +151,20 @@ git clone https://github.com/anjinapp-aryan/DBPilot-AI.git
 cd DBPilot-AI
 ```
 
-## Local Development
-
 ### 1. Backend
 
 ```bash
 cd backend
 python -m venv .venv
-. .venv/Scripts/activate        # Windows (PowerShell: .venv\Scripts\Activate.ps1)
+. .venv/Scripts/activate        # Windows Git Bash (PowerShell: .venv\Scripts\Activate.ps1)
 # source .venv/bin/activate      # macOS/Linux
-pip install -r requirements.txt
-cp ../.env.example .env         # then fill in DATABASE_URL + at least one AI provider key
+pip install -r requirements-dev.txt
+cp ../.env.example .env         # note: .env lives in backend/, then fill in at least one AI provider key
 uvicorn app.main:app --reload --port 8000
 ```
 
-Backend runs at `http://localhost:8000` (health check at `/health`, docs at `/docs`).
+Backend runs at `http://localhost:8000` — interactive API docs at `/docs`,
+health at `/health`, AI Gateway status at `/api/v1/ai/health`.
 
 ### 2. Frontend
 
@@ -149,17 +183,22 @@ Frontend runs at `http://localhost:3000`.
 docker compose -f deployment/docker-compose.yml up --build
 ```
 
-See [scripts/](scripts/) for one-shot setup scripts.
+## Testing & Quality
 
-## Deployment
+```bash
+# Backend (from backend/)
+pytest --cov=app --cov-report=term-missing
+ruff check .
+black --check .
+mypy app
 
-DBPilot AI is designed to run entirely on free tiers:
+# Frontend (from frontend/)
+npm run test
+npm run lint
+npm run type-check
+```
 
-- **Frontend** → [Vercel](https://vercel.com)
-- **Backend** → [Railway](https://railway.app) or [Render](https://render.com)
-- **Database** → [Neon PostgreSQL](https://neon.tech)
-
-Full deployment guide: [docs/deployment.md](docs/deployment.md).
+CI runs the same checks on Python 3.11 and 3.12 for every push and PR.
 
 ## Environment Variables
 
@@ -167,24 +206,23 @@ See [.env.example](.env.example) for the complete list. Key variables:
 
 | Variable | Description |
 |---|---|
-| `DATABASE_URL` | Connection string for the target/app PostgreSQL database |
 | `PRIMARY_PROVIDER` / `AI_PROVIDER_ORDER` | Preferred LLM provider and failover chain (DeepSeek → Gemini → Groq → Qwen → OpenRouter) |
 | `DEEP_SHEEK_NVIDIA_API_KEY`, `GEMINI_API_KEY`, `GROQ_API_KEY`, `QWEN3_NVIDIA_API_KEY`, `OPENROUTER_API_KEY` | Per-provider API keys — the gateway skips any provider whose key/model isn't set |
+| `DATABASE_URL` | Connection string for the app's PostgreSQL database |
 | `NEXT_PUBLIC_API_BASE_URL` | URL the frontend uses to reach the backend API |
 | `ALLOWED_ORIGINS` | CORS allow-list for the backend |
 | `SECRET_KEY` | Backend secret for signing/session use |
 
-## Examples
-
-Example natural-language-to-SQL walkthroughs will be added under
-[examples/](examples/) as the text-to-SQL agent lands (Phase 3).
+> The backend loads its `.env` from `backend/.env` (relative to the process
+> working directory), not from the repo root.
 
 ## Roadmap
 
 | Phase | Milestone | Status |
 |---|---|---|
-| 1 | Project bootstrap | ✅ In progress |
-| 2 | Schema discovery | ⬜ Planned |
+| 1 | Project bootstrap (monorepo, CI, foundation layers) | ✅ Done |
+| — | AI Gateway (multi-provider failover, circuit breakers, metrics) | ✅ Done |
+| 2 | Schema discovery | ⬜ Next up |
 | 3 | Text-to-SQL | ⬜ Planned |
 | 4 | SQL validation | ⬜ Planned |
 | 5 | SQL execution | ⬜ Planned |
@@ -194,7 +232,8 @@ Example natural-language-to-SQL walkthroughs will be added under
 | 9 | Multi-agent orchestration | ⬜ Planned |
 | 10 | Production deployment | ⬜ Planned |
 
-Full detail: [docs/roadmap.md](docs/roadmap.md).
+Full detail: [ROADMAP.md](ROADMAP.md) (long-term) and
+[docs/roadmap.md](docs/roadmap.md) (phase-by-phase).
 
 ## Contributing
 
