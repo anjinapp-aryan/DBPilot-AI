@@ -21,3 +21,11 @@ regexes = [
   '''gsk-test''',
   '''sk-test''',
 ]
+
+# deployment/render.yaml only ever declares Render env var *names*
+# (e.g. `- key: QWEN3_NVIDIA_API_KEY`, `sync: false`) for values entered
+# through the Render dashboard — it never holds a real secret value. The
+# generic-api-key rule matches on the env-var-name-shaped line itself.
+paths = [
+  '''deployment/render\.yaml''',
+]
