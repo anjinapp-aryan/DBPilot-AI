@@ -12,51 +12,60 @@ function nextId(): string {
   return `msg-${idCounter}-${Date.now()}`;
 }
 
+const DEFAULT_SYSTEM_PROMPT =
+  "You are the AI assistant for DBPilot AI, an enterprise database platform. " +
+  "Help with SQL, schema design, query optimization, and database concepts. " +
+  "Database connections, schema discovery, and query execution are not wired up yet in this build, " +
+  "so don't claim to run queries or inspect a live schema — answer from general SQL/database knowledge instead.";
+
 export function useChat() {
   const [messages, setMessages] = useState<ChatMessageUI[]>([]);
   const abortRef = useRef<AbortController | null>(null);
 
-  const runAssistantReply = useCallback(async (userText: string, system?: string) => {
-    const assistantId = nextId();
-    setMessages((prev) => [
-      ...prev,
-      { id: assistantId, role: "assistant", content: "", streaming: true },
-    ]);
+  const runAssistantReply = useCallback(
+    async (userText: string, system: string = DEFAULT_SYSTEM_PROMPT) => {
+      const assistantId = nextId();
+      setMessages((prev) => [
+        ...prev,
+        { id: assistantId, role: "assistant", content: "", streaming: true },
+      ]);
 
-    const controller = new AbortController();
-    abortRef.current = controller;
+      const controller = new AbortController();
+      abortRef.current = controller;
 
-    try {
-      await streamChat(
-        { message: userText, system },
-        {
-          signal: controller.signal,
-          onToken: (token) => {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + token } : m)),
-            );
+      try {
+        await streamChat(
+          { message: userText, system },
+          {
+            signal: controller.signal,
+            onToken: (token) => {
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantId ? { ...m, content: m.content + token } : m)),
+              );
+            },
+            onError: (message) => {
+              setMessages((prev) =>
+                prev.map((m) => (m.id === assistantId ? { ...m, content: `⚠️ ${message}` } : m)),
+              );
+            },
           },
-          onError: (message) => {
-            setMessages((prev) =>
-              prev.map((m) => (m.id === assistantId ? { ...m, content: `⚠️ ${message}` } : m)),
-            );
-          },
-        },
-      );
-    } catch {
-      setMessages((prev) =>
-        prev.map((m) =>
-          m.id === assistantId && !m.content
-            ? { ...m, content: "⚠️ Something went wrong reaching the AI Gateway." }
-            : m,
-        ),
-      );
-    } finally {
-      setMessages((prev) =>
-        prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)),
-      );
-    }
-  }, []);
+        );
+      } catch {
+        setMessages((prev) =>
+          prev.map((m) =>
+            m.id === assistantId && !m.content
+              ? { ...m, content: "⚠️ Something went wrong reaching the AI Gateway." }
+              : m,
+          ),
+        );
+      } finally {
+        setMessages((prev) =>
+          prev.map((m) => (m.id === assistantId ? { ...m, streaming: false } : m)),
+        );
+      }
+    },
+    [],
+  );
 
   const sendMessage = useCallback(
     (text: string) => {
