@@ -71,8 +71,9 @@ async def ai_chat_stream(payload: ChatRequest, gateway: Gateway) -> StreamingRes
     """
 
     async def event_source():
+        messages = [ChatMessage.user(payload.message)]
         try:
-            async for token in gateway.stream_chat([ChatMessage.user(payload.message)], system=payload.system):
+            async for token in gateway.stream_chat(messages, system=payload.system):
                 yield f"data: {json.dumps({'token': token})}\n\n"
             yield "data: [DONE]\n\n"
         except Exception as exc:  # noqa: BLE001 - stream-safe error framing, not a swallow
