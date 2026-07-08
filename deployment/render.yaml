@@ -9,7 +9,19 @@ services:
     envVars:
       - key: DATABASE_URL
         sync: false
-      - key: DEEPSEEK_API_KEY
+      - key: PRIMARY_PROVIDER
+        value: deepseek
+      - key: AI_PROVIDER_ORDER
+        value: deepseek,gemini,groq,qwen,openrouter
+      - key: DEEP_SHEEK_NVIDIA_API_KEY
+        sync: false
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: QWEN3_NVIDIA_API_KEY
+        sync: false
+      - key: OPENROUTER_API_KEY
         sync: false
       - key: ALLOWED_ORIGINS
         value: https://dbpilot-ai.vercel.app
